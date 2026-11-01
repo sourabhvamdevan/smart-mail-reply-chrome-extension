@@ -71,6 +71,24 @@ flowchart LR
     T -- "HTTPS" --> TV[("Tavily Search API")]
     GR -- "HTTPS" --> GQ[("Groq API<br/>Llama 3.3 70B")]
     GM -- "HTTPS" --> GE[("Google Gemini API")]
+
+    classDef ext fill:#1f6feb,stroke:#0a3069,color:#ffffff,stroke-width:2px
+    classDef ingest fill:#8957e5,stroke:#3b1e7a,color:#ffffff,stroke-width:2px
+    classDef store fill:#bf8700,stroke:#5c4400,color:#ffffff,stroke-width:2px
+    classDef engine fill:#d1242f,stroke:#6e1018,color:#ffffff,stroke-width:2px
+    classDef api fill:#e36209,stroke:#7a3300,color:#ffffff,stroke-width:2px
+    classDef front fill:#1a7f37,stroke:#0b3d1a,color:#ffffff,stroke-width:2px
+    classDef view fill:#0e8a8a,stroke:#054545,color:#ffffff,stroke-width:2px
+    classDef dark fill:#24292f,stroke:#000000,color:#ffffff,stroke-width:2px
+    class G ext
+    class E,T ingest
+    class C api
+    class S engine
+    class L dark
+    class GR,GM front
+    class TV,GQ,GE store
+    style Browser fill:#1f6feb1a,stroke:#1f6feb,stroke-width:2px,stroke-dasharray:4 3
+    style Backend fill:#e362091a,stroke:#e36209,stroke-width:2px,stroke-dasharray:4 3
 ```
 
 ### Request flow
@@ -78,29 +96,43 @@ flowchart LR
 ```mermaid
 sequenceDiagram
     autonumber
-    actor U as User
-    participant X as Extension (content.js)
-    participant API as ReplyController
-    participant SVC as ReplyService
-    participant TV as Tavily
-    participant LLM as Groq / Gemini
-
-    U->>X: Click "AI Reply"
-    X->>X: Read email text from Gmail DOM
-    X->>API: POST /api/email/generate<br/>{emailContent, tone, provider?, useSearch?}
-    API->>SVC: generateReply(request)
-    SVC->>SVC: Pick provider (request override or default)
-    opt useSearch enabled and Tavily key set
-        SVC->>TV: search(email text, max 380 chars)
-        TV-->>SVC: summary + top results
-        Note over SVC,TV: Any Tavily error is logged and ignored
+    box rgba(31,111,235,0.25) Browser
+        actor U as User
+        participant X as Extension (content.js)
     end
-    SVC->>SVC: Build prompt (tone + web context + email)
-    SVC->>LLM: generate(prompt)
-    LLM-->>SVC: reply text
-    SVC-->>API: reply
-    API-->>X: 200 text/plain
-    X->>U: Insert reply into compose box
+    box rgba(227,98,9,0.25) Spring Boot backend
+        participant API as ReplyController
+        participant SVC as ReplyService
+    end
+    box rgba(191,135,0,0.25) External APIs
+        participant TV as Tavily
+        participant LLM as Groq / Gemini
+    end
+
+    rect rgba(31,111,235,0.12)
+        U->>X: Click "AI Reply"
+        X->>X: Read email text from Gmail DOM
+        X->>API: POST /api/email/generate<br/>{emailContent, tone, provider?, useSearch?}
+    end
+    rect rgba(227,98,9,0.12)
+        API->>SVC: generateReply(request)
+        SVC->>SVC: Pick provider (request override or default)
+        opt useSearch enabled and Tavily key set
+            SVC->>TV: search(email text, max 380 chars)
+            TV-->>SVC: summary + top results
+            Note over SVC,TV: Any Tavily error is logged and ignored
+        end
+    end
+    rect rgba(137,87,229,0.14)
+        SVC->>SVC: Build prompt (tone + web context + email)
+        SVC->>LLM: generate(prompt)
+        LLM-->>SVC: reply text
+    end
+    rect rgba(45,164,78,0.14)
+        SVC-->>API: reply
+        API-->>X: 200 text/plain
+        X->>U: Insert reply into compose box
+    end
 ```
 
 ### Backend classes
@@ -141,6 +173,14 @@ classDiagram
     ReplyService --> TavilyClient
     LlmClient <|.. GroqClient
     LlmClient <|.. GeminiClient
+
+    style ReplyController fill:#e36209,stroke:#7a3300,color:#ffffff,stroke-width:2px
+    style ReplyService fill:#d1242f,stroke:#6e1018,color:#ffffff,stroke-width:2px
+    style ReplyRequest fill:#1f6feb,stroke:#0a3069,color:#ffffff,stroke-width:2px
+    style LlmClient fill:#24292f,stroke:#000000,color:#ffffff,stroke-width:2px
+    style GroqClient fill:#1a7f37,stroke:#0b3d1a,color:#ffffff,stroke-width:2px
+    style GeminiClient fill:#0e8a8a,stroke:#054545,color:#ffffff,stroke-width:2px
+    style TavilyClient fill:#bf8700,stroke:#5c4400,color:#ffffff,stroke-width:2px
 ```
 
 Adding another provider means writing one class that implements `LlmClient`. Spring injects every
